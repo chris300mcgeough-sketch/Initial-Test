@@ -1,5 +1,5 @@
 import streamlit as st 
-st.title("Christophers Website")
+st.title("Christophers Weebsite")
 st.write("my first website")
 name=st.text_input("Enter your name")
 
