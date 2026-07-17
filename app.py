@@ -2,25 +2,24 @@ import streamlit as st
 import pandas as pd
 import plotly.express as px
 
-# ---------------------------------------------------
-# CONFIG
-# ---------------------------------------------------
-
 st.set_page_config(
-    page_title="Personal Finance Dashboard",
+    page_title="Finance Dashboard",
     page_icon="💰",
     layout="wide"
 )
 
-CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTJgDBfNelXYmNKyNTI98jZQtFOZRVEQlPjFrHznNfsXGigWCwtkZymom7XM0BW4FH6MiCzqUSE3zXB/pub?output=csv"
-
-# ---------------------------------------------------
+# ==========================================
 # LOAD DATA
-# ---------------------------------------------------
+# ==========================================
+
+CSV_URL = "YOUR_GOOGLE_SHEET_CSV_URL_HERE"
 
 @st.cache_data
 def load_data():
+
     df = pd.read_csv(CSV_URL)
+
+    df.columns = df.columns.str.strip()
 
     df["Date"] = pd.to_datetime(
         df["Date"],
@@ -33,147 +32,200 @@ def load_data():
         errors="coerce"
     )
 
+    df["ABS Amount"] = pd.to_numeric(
+        df["ABS Amount"],
+        errors="coerce"
+    )
+
     return df
 
 df = load_data()
 
-# ---------------------------------------------------
-# HEADER
-# ---------------------------------------------------
-
-st.title("💰 Personal Finance Dashboard")
-
-st.caption("Live data from Google Sheets")
-
-# ---------------------------------------------------
+# ==========================================
 # SIDEBAR
-# ---------------------------------------------------
+# ==========================================
 
-st.sidebar.header("Filters")
+st.sidebar.title("Filters")
 
 accounts = st.sidebar.multiselect(
     "Account",
-    df["Account"].dropna().unique(),
-    default=df["Account"].dropna().unique()
+    df["Account"].unique(),
+    default=df["Account"].unique()
 )
 
 categories = st.sidebar.multiselect(
     "Category",
-    df["Category"].dropna().unique(),
-    default=df["Category"].dropna().unique()
+    df["Category"].unique(),
+    default=df["Category"].unique()
 )
 
-filtered_df = df[
-    df["Account"].isin(accounts)
-    & df["Category"].isin(categories)
+df = df[
+    (df["Account"].isin(accounts))
+    &
+    (df["Category"].isin(categories))
 ]
 
-# ---------------------------------------------------
-# KPI'S
-# ---------------------------------------------------
+# ==========================================
+# HEADER
+# ==========================================
 
-income = filtered_df.loc[
-    filtered_df["Amount"] > 0,
-    "Amount"
-].sum()
+st.title("💰 Personal Finance Dashboard")
 
-spending = abs(filtered_df.loc[
-    filtered_df["Amount"] < 0,
-    "Amount"
-].sum())
+# ==========================================
+# KPI CARDS
+# ==========================================
 
-net = income - spending
+income = df[df["Amount"] > 0]["Amount"].sum()
 
-transactions = len(filtered_df)
+spending = abs(
+    df[df["Amount"] < 0]["Amount"].sum()
+)
 
-col1, col2, col3, col4 = st.columns(4)
+net_cashflow = income - spending
 
-col1.metric("Income", f"£{income:,.2f}")
-col2.metric("Spending", f"£{spending:,.2f}")
-col3.metric("Net Cashflow", f"£{net:,.2f}")
-col4.metric("Transactions", transactions)
+transactions = len(df)
+
+c1, c2, c3, c4 = st.columns(4)
+
+c1.metric("Income", f"£{income:,.2f}")
+c2.metric("Spending", f"£{spending:,.2f}")
+c3.metric("Net Cashflow", f"£{net_cashflow:,.2f}")
+c4.metric("Transactions", transactions)
 
 st.divider()
 
-# ---------------------------------------------------
-# CATEGORY SPEND
-# ---------------------------------------------------
+# ==========================================
+# CATEGORY SPENDING
+# ==========================================
 
-spend_df = (
-    filtered_df[filtered_df["Amount"] < 0]
-    .groupby("Category")["Amount"]
+spend_by_category = (
+    df[df["Amount"] < 0]
+    .groupby("Category")["ABS Amount"]
     .sum()
-    .abs()
     .sort_values(ascending=False)
     .reset_index()
 )
 
-fig = px.bar(
-    spend_df,
+fig1 = px.bar(
+    spend_by_category,
     x="Category",
-    y="Amount",
-    title="Spending by Category"
+    y="ABS Amount",
+    title="Spending By Category"
 )
 
-st.plotly_chart(
-    fig,
-    use_container_width=True
+# ==========================================
+# P&L CATEGORY
+# ==========================================
+
+spend_by_pl = (
+    df[df["Amount"] < 0]
+    .groupby("P&L Category")["ABS Amount"]
+    .sum()
+    .sort_values(ascending=False)
+    .reset_index()
 )
 
-# ---------------------------------------------------
-# MONTHLY TREND
-# ---------------------------------------------------
-
-filtered_df["Month"] = (
-    filtered_df["Date"]
-    .dt.to_period("M")
-    .astype(str)
+fig2 = px.pie(
+    spend_by_pl,
+    names="P&L Category",
+    values="ABS Amount",
+    title="P&L Breakdown"
 )
 
-monthly = (
-    filtered_df
-    .groupby("Month")["Amount"]
+# ==========================================
+# FIXED VS NON FIXED
+# ==========================================
+
+fixed_df = (
+    df[df["Amount"] < 0]
+    .groupby("Non/Fixed")["ABS Amount"]
     .sum()
     .reset_index()
 )
 
-fig2 = px.line(
-    monthly,
-    x="Month",
-    y="Amount",
-    markers=True,
-    title="Monthly Cashflow"
-)
-
-st.plotly_chart(
-    fig2,
-    use_container_width=True
-)
-
-# ---------------------------------------------------
-# CATEGORY PIE
-# ---------------------------------------------------
-
 fig3 = px.pie(
-    spend_df,
-    names="Category",
-    values="Amount",
-    title="Spending Breakdown"
+    fixed_df,
+    names="Non/Fixed",
+    values="ABS Amount",
+    title="Fixed vs Non Fixed"
 )
+
+col1, col2 = st.columns(2)
+
+with col1:
+    st.plotly_chart(
+        fig1,
+        use_container_width=True
+    )
+
+with col2:
+    st.plotly_chart(
+        fig2,
+        use_container_width=True
+    )
 
 st.plotly_chart(
     fig3,
     use_container_width=True
 )
 
-# ---------------------------------------------------
-# RAW DATA
-# ---------------------------------------------------
+# ==========================================
+# WEEKLY SPEND
+# ==========================================
+
+weekly = (
+    df[df["Amount"] < 0]
+    .groupby("WeekNum")["ABS Amount"]
+    .sum()
+    .reset_index()
+)
+
+fig4 = px.line(
+    weekly,
+    x="WeekNum",
+    y="ABS Amount",
+    markers=True,
+    title="Weekly Spending"
+)
+
+st.plotly_chart(
+    fig4,
+    use_container_width=True
+)
+
+# ==========================================
+# MERCHANT ANALYSIS
+# ==========================================
+
+merchant_spend = (
+    df[df["Amount"] < 0]
+    .groupby("Merchant")["ABS Amount"]
+    .sum()
+    .sort_values(ascending=False)
+    .head(10)
+    .reset_index()
+)
+
+fig5 = px.bar(
+    merchant_spend,
+    x="Merchant",
+    y="ABS Amount",
+    title="Top Merchants"
+)
+
+st.plotly_chart(
+    fig5,
+    use_container_width=True
+)
+
+# ==========================================
+# TRANSACTIONS
+# ==========================================
 
 st.subheader("Transactions")
 
 st.dataframe(
-    filtered_df.sort_values(
+    df.sort_values(
         "Date",
         ascending=False
     ),
