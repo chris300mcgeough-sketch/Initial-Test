@@ -12,7 +12,7 @@ st.set_page_config(
 # LOAD DATA
 # ==========================================
 
-CSV_URL = "YOUR_GOOGLE_SHEET_CSV_URL_HERE"
+CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTJgDBfNelXYmNKyNTI98jZQtFOZRVEQlPjFrHznNfsXGigWCwtkZymom7XM0BW4FH6MiCzqUSE3zXB/pub?output=csv"
 
 @st.cache_data
 def load_data():
